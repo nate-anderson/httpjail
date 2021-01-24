@@ -11,7 +11,7 @@ Thread-safe but probably not performant
 jail := httpjail.NewBasicJail(30, 30, false)
 
 // if using a proxy or load balancer, use the X-Forwarded-For header to get request IPs
-if (proxy) {
+if proxy {
     jail.IsProxied()
 }
 
