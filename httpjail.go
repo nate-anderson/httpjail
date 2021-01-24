@@ -18,7 +18,7 @@ type Jail struct {
 	visitors  VisitorLog
 }
 
-// VisitorLog implements visitor request logging
+// VisitorLog defines visitor request logging/log reading
 type VisitorLog interface {
 	LogVisit(ipAddr string)
 	CountVisits(ipAddr string, since time.Time) int
