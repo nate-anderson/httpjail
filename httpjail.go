@@ -2,6 +2,7 @@ package httpjail
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"sync"
 	"time"
@@ -9,6 +10,8 @@ import (
 
 // Jail monitors requests and jails violating IPs
 type Jail struct {
+	// is the server running behind a proxy or load balancer?
+	isProxied bool
 	// number of requests to allow
 	AllowedRequests int
 	// duration to consider request coutn
@@ -24,10 +27,20 @@ type VisitorLog interface {
 	CountVisits(ipAddr string, since time.Time) int
 }
 
+// IsProxied sets the jail to proxy mode, using the X-Forwarded-For header instead of the request IP
+func (j *Jail) IsProxied() {
+	j.isProxied = true
+}
+
 // Middleware returns the jail's HTTP middleware
 func (j Jail) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		ipAddr := req.RemoteAddr
+		if j.isProxied {
+			ipAddr = req.Header.Get("X-Forwarded-For")
+		}
+
+		log.Printf("REQUEST FROM IP %s", ipAddr)
 		j.visitors.LogVisit(ipAddr)
 
 		since := time.Now().Add(-j.Window)

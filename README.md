@@ -1,5 +1,5 @@
 # httpjail
 
-Go HTTP middleware for banning spammy IPs
+Go HTTP rate limiting middleware
 
 Thread-safe but probably not performant
