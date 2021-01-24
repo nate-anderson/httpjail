@@ -82,7 +82,7 @@ func NewJail(visitorLog VisitorLog, window time.Duration, allowedRequests int) *
 }
 
 // NewBasicJail creates a new jail with a second-duration window and a default visitor log
-func NewBasicJail(windowSeconds int64, allowedRequests int) *Jail {
+func NewBasicJail(windowSeconds int64, allowedRequests int, noRespond bool) *Jail {
 	log := defaultVisitorLog{
 		visits: make(map[string][]time.Time),
 	}
@@ -91,5 +91,6 @@ func NewBasicJail(windowSeconds int64, allowedRequests int) *Jail {
 		AllowedRequests: allowedRequests,
 		visitors:        &log,
 		Window:          window,
+		NoRespond:       noRespond,
 	}
 }
