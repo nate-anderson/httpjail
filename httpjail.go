@@ -3,6 +3,7 @@ package httpjail
 import (
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 )
 
@@ -50,9 +51,13 @@ type DefaultVisitorLog struct {
 	visits map[string][]time.Time
 }
 
+var logVisitMux = sync.Mutex{}
+
 // LogVisit logs an IP address request
 func (l *DefaultVisitorLog) LogVisit(ipAddr string) {
+	logVisitMux.Lock()
 	l.visits[ipAddr] = append(l.visits[ipAddr], time.Now())
+	logVisitMux.Unlock()
 }
 
 // CountVisits counts the visitor's
