@@ -46,22 +46,22 @@ func (j Jail) Middleware(next http.Handler) http.Handler {
 
 const cleanupEvery = 100
 
-// DefaultVisitorLog is the default implementation of VisitorLog
-type DefaultVisitorLog struct {
+// defaultVisitorLog is the default implementation of VisitorLog
+type defaultVisitorLog struct {
 	visits map[string][]time.Time
 }
 
 var logVisitMux = sync.Mutex{}
 
 // LogVisit logs an IP address request
-func (l *DefaultVisitorLog) LogVisit(ipAddr string) {
+func (l *defaultVisitorLog) LogVisit(ipAddr string) {
 	logVisitMux.Lock()
 	l.visits[ipAddr] = append(l.visits[ipAddr], time.Now())
 	logVisitMux.Unlock()
 }
 
 // CountVisits counts the visitor's
-func (l DefaultVisitorLog) CountVisits(ipAddr string, since time.Time) int {
+func (l defaultVisitorLog) CountVisits(ipAddr string, since time.Time) int {
 	var count int
 	for _, visit := range l.visits[ipAddr] {
 		if visit.After(since) {
@@ -83,7 +83,7 @@ func NewJail(visitorLog VisitorLog, window time.Duration, allowedRequests int) *
 
 // NewBasicJail creates a new jail with a second-duration window and a default visitor log
 func NewBasicJail(windowSeconds int64, allowedRequests int) *Jail {
-	log := DefaultVisitorLog{
+	log := defaultVisitorLog{
 		visits: make(map[string][]time.Time),
 	}
 	window, _ := time.ParseDuration(fmt.Sprintf("%ds", windowSeconds))
