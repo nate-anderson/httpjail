@@ -2,7 +2,6 @@ package httpjail
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 	"sync"
 	"time"
@@ -40,7 +39,6 @@ func (j Jail) Middleware(next http.Handler) http.Handler {
 			ipAddr = req.Header.Get("X-Forwarded-For")
 		}
 
-		log.Printf("REQUEST FROM IP %s", ipAddr)
 		j.visitors.LogVisit(ipAddr)
 
 		since := time.Now().Add(-j.Window)
