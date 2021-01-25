@@ -71,16 +71,18 @@ func (l *defaultVisitorLog) LogVisit(ipAddr string) {
 	logVisitMux.Unlock()
 }
 
-// CountVisits counts the visitor's
-func (l defaultVisitorLog) CountVisits(ipAddr string, since time.Time) int {
-	var count int
+// CountVisits counts the visitor's visit
+func (l *defaultVisitorLog) CountVisits(ipAddr string, since time.Time) int {
+	var visits []time.Time
 	for _, visit := range l.visits[ipAddr] {
 		if visit.After(since) {
-			count++
+			visits = append(visits, visit)
 		}
 	}
 
-	return count
+	// remove old visits
+	l.visits[ipAddr] = visits
+	return len(visits)
 }
 
 // NewJail constructs a new Jail
