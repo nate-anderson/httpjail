@@ -18,6 +18,9 @@ type Jail struct {
 	// should jailed clients recieve no response?
 	NoRespond bool
 	visitors  VisitorLog
+	// duration to prevent requests after limit is reached
+	Cooloff   time.Duration
+	Sentences map[string]time.Time
 }
 
 // VisitorLog defines visitor request logging/log reading
@@ -41,18 +44,33 @@ func (j Jail) Middleware(next http.Handler) http.Handler {
 
 		j.visitors.LogVisit(ipAddr)
 
-		since := time.Now().Add(-j.Window)
-		reqCount := j.visitors.CountVisits(ipAddr, since)
-		if reqCount < j.AllowedRequests {
-			next.ServeHTTP(w, req)
-			return
+		if !j.isSentenced(ipAddr) {
+			since := time.Now().Add(-j.Window)
+			reqCount := j.visitors.CountVisits(ipAddr, since)
+			if reqCount < j.AllowedRequests {
+				next.ServeHTTP(w, req)
+				return
+			}
 		}
+
+		j.sentence(ipAddr)
 
 		if !j.NoRespond {
 			fmt.Fprint(w, "You are doing that too much. Please slow down and try again later.")
 			return
 		}
 	})
+}
+
+// isSentenced checks if the address is subject to a cooloff period
+func (j Jail) isSentenced(ipAddr string) bool {
+	release, isJailed := j.Sentences[ipAddr]
+	return isJailed && release.Before(time.Now())
+}
+
+// sentence address to a cooloff
+func (j Jail) sentence(ipAddr string) {
+	j.Sentences[ipAddr] = time.Now().Add(j.Cooloff)
 }
 
 const cleanupEvery = 100
@@ -86,10 +104,11 @@ func (l *defaultVisitorLog) CountVisits(ipAddr string, since time.Time) int {
 }
 
 // NewJail constructs a new Jail
-func NewJail(visitorLog VisitorLog, window time.Duration, allowedRequests int) *Jail {
+func NewJail(visitorLog VisitorLog, window, cooloff time.Duration, allowedRequests int) *Jail {
 	return &Jail{
 		AllowedRequests: allowedRequests,
 		Window:          window,
+		Cooloff:         cooloff,
 		visitors:        visitorLog,
 	}
 }
