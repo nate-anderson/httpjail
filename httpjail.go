@@ -110,6 +110,7 @@ func NewJail(visitorLog VisitorLog, window, cooloff time.Duration, allowedReques
 		Window:          window,
 		Cooloff:         cooloff,
 		visitors:        visitorLog,
+		Sentences:       make(map[string]time.Time),
 	}
 }
 
@@ -124,5 +125,6 @@ func NewBasicJail(windowSeconds int64, allowedRequests int, noRespond bool) *Jai
 		visitors:        &log,
 		Window:          window,
 		NoRespond:       noRespond,
+		Sentences:       make(map[string]time.Time),
 	}
 }
