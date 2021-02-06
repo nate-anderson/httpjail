@@ -158,3 +158,43 @@ func TestProxiedMiddleware(t *testing.T) {
 
 	log.Printf("%#v", jail.visitors)
 }
+
+func TestMiddlewareCooldown(t *testing.T) {
+	cooloff := time.Duration(5) * time.Second
+	requestWindow := time.Duration(5) * time.Second
+
+	jail := &Jail{
+		AllowedRequests: 1,
+		NoRespond:       false,
+		Cooloff:         cooloff,
+		Window:          requestWindow,
+		visitors:        NewDefaultVisitorLog(),
+		Sentences:       make(map[string]time.Time),
+	}
+
+	stopServer := makeTestServer(jail)
+	defer stopServer()
+
+	// first request allowed
+	reached := requestAllowed(t)
+	if !reached {
+		t.Log("first request denied")
+		t.Fail()
+	}
+
+	// second request denied
+	reached = requestAllowed(t)
+	if reached {
+		t.Log("request allowed, should be blocked")
+		t.Fail()
+	}
+
+	// request allowed after cooloff
+	time.Sleep(cooloff)
+	reached = requestAllowed(t)
+	if !reached {
+		t.Log("cooloff did not expire")
+		t.Fail()
+	}
+
+}
