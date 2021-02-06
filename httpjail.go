@@ -47,7 +47,7 @@ func (j Jail) Middleware(next http.Handler) http.Handler {
 		if !j.isSentenced(ipAddr) {
 			since := time.Now().Add(-j.Window)
 			reqCount := j.visitors.CountVisits(ipAddr, since)
-			if reqCount < j.AllowedRequests {
+			if reqCount <= j.AllowedRequests {
 				next.ServeHTTP(w, req)
 				return
 			}
@@ -65,35 +65,43 @@ func (j Jail) Middleware(next http.Handler) http.Handler {
 // isSentenced checks if the address is subject to a cooloff period
 func (j Jail) isSentenced(ipAddr string) bool {
 	release, isJailed := j.Sentences[ipAddr]
-	return isJailed && release.Before(time.Now())
+	return isJailed && release.After(time.Now())
 }
 
 // sentence address to a cooloff
 func (j Jail) sentence(ipAddr string) {
-	j.Sentences[ipAddr] = time.Now().Add(j.Cooloff)
+	sentence := time.Now().Add(j.Cooloff)
+	j.Sentences[ipAddr] = sentence
 }
 
 const cleanupEvery = 100
 
-// defaultVisitorLog is the default implementation of VisitorLog
-type defaultVisitorLog struct {
+// DefaultVisitorLog is the default implementation of VisitorLog
+type DefaultVisitorLog struct {
 	visits map[string][]time.Time
 }
 
 var logVisitMux = sync.Mutex{}
 
+// NewDefaultVisitorLog instantiates a DefaultVisitorLog
+func NewDefaultVisitorLog() *DefaultVisitorLog {
+	return &DefaultVisitorLog{
+		visits: make(map[string][]time.Time),
+	}
+}
+
 // LogVisit logs an IP address request
-func (l *defaultVisitorLog) LogVisit(ipAddr string) {
+func (l *DefaultVisitorLog) LogVisit(ipAddr string) {
 	logVisitMux.Lock()
 	l.visits[ipAddr] = append(l.visits[ipAddr], time.Now())
 	logVisitMux.Unlock()
 }
 
 // CountVisits counts the visitor's visit
-func (l *defaultVisitorLog) CountVisits(ipAddr string, since time.Time) int {
+func (l *DefaultVisitorLog) CountVisits(ipAddr string, since time.Time) int {
 	var visits []time.Time
 	for _, visit := range l.visits[ipAddr] {
-		if visit.After(since) {
+		if visit.After(since) || visit.Equal(since) {
 			visits = append(visits, visit)
 		}
 	}
@@ -116,13 +124,11 @@ func NewJail(visitorLog VisitorLog, window, cooloff time.Duration, allowedReques
 
 // NewBasicJail creates a new jail with a second-duration window and a default visitor log
 func NewBasicJail(windowSeconds int64, allowedRequests int, noRespond bool) *Jail {
-	log := defaultVisitorLog{
-		visits: make(map[string][]time.Time),
-	}
+	log := NewDefaultVisitorLog()
 	window, _ := time.ParseDuration(fmt.Sprintf("%ds", windowSeconds))
 	return &Jail{
 		AllowedRequests: allowedRequests,
-		visitors:        &log,
+		visitors:        log,
 		Window:          window,
 		NoRespond:       noRespond,
 		Sentences:       make(map[string]time.Time),
