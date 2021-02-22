@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 )
@@ -56,6 +57,18 @@ func requestAllowed(t *testing.T) bool {
 	return string(bodyBytes) == successRes
 }
 
+func makeRequest(fromAddr string, isProxied bool) *http.Request {
+	req, err := http.NewRequest("POST", fmt.Sprintf("http://localhost%s", testPort), strings.NewReader("hello"))
+	if err != nil {
+		panic(err)
+	}
+	req.RemoteAddr = fromAddr
+	if isProxied {
+		req.Header.Add("X-Forwarded-For", fromAddr)
+	}
+	return req
+}
+
 func TestDefaultVisitorLogCountVisits(t *testing.T) {
 	visitorLog := NewDefaultVisitorLog()
 
@@ -63,9 +76,10 @@ func TestDefaultVisitorLogCountVisits(t *testing.T) {
 
 	since := time.Now()
 	for i := 1; i <= 10; i++ {
-		visitorLog.LogVisit(testAddr)
+		req := makeRequest(testAddr, false)
+		visitorLog.LogVisit(req)
 
-		visitCount := visitorLog.CountVisits(testAddr, since)
+		visitCount := visitorLog.CountVisits(req, since)
 		if visitCount != i {
 			t.Logf("incorrect visit count: got %d, expected %d", visitCount, i)
 			t.Fail()
@@ -73,7 +87,8 @@ func TestDefaultVisitorLogCountVisits(t *testing.T) {
 	}
 
 	after := time.Now()
-	countAfter := visitorLog.CountVisits(testAddr, after)
+	req := makeRequest(testAddr, false)
+	countAfter := visitorLog.CountVisits(req, after)
 	if countAfter != 0 {
 		t.Logf("visitor log reported incorrect visitor count: got %d, expected %d", countAfter, 0)
 		t.Fail()
@@ -123,16 +138,9 @@ func TestProxiedMiddleware(t *testing.T) {
 	stopServer := makeTestServer(jail)
 	defer stopServer()
 
-	testURL := fmt.Sprintf("http://localhost%s", testPort)
-	req, err := http.NewRequest("GET", testURL, nil)
-	if err != nil {
-		t.Log(err)
-		t.FailNow()
-	}
-
 	testAddr := "1.2.3.4"
+	req := makeRequest(testAddr, true)
 
-	req.Header.Add("X-Forwarded-For", testAddr)
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Log(err)
@@ -149,9 +157,10 @@ func TestProxiedMiddleware(t *testing.T) {
 		t.Fail()
 	}
 
-	count := jail.visitors.CountVisits(testAddr, now)
+	count := jail.visitors.CountVisits(req, now)
 	if count != 1 {
 		t.Logf("%#v", jail.visitors)
+		t.Logf("%#v", req)
 		t.Logf("Incorrect visit count: expected %d, got %d", 1, count)
 		t.Fail()
 	}

@@ -25,8 +25,8 @@ type Jail struct {
 
 // VisitorLog defines visitor request logging/log reading
 type VisitorLog interface {
-	LogVisit(ipAddr string)
-	CountVisits(ipAddr string, since time.Time) int
+	LogVisit(req *http.Request)
+	CountVisits(req *http.Request, since time.Time) int
 }
 
 // IsProxied sets the jail to proxy mode, using the X-Forwarded-For header instead of the request IP
@@ -37,23 +37,23 @@ func (j *Jail) IsProxied() {
 // Middleware returns the jail's HTTP middleware
 func (j Jail) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		ipAddr := req.RemoteAddr
+		// rewrite RemoteAddr if proxied
 		if j.isProxied {
-			ipAddr = req.Header.Get("X-Forwarded-For")
+			req.RemoteAddr = req.Header.Get("X-Forwarded-For")
 		}
 
-		j.visitors.LogVisit(ipAddr)
+		j.visitors.LogVisit(req)
 
-		if !j.isSentenced(ipAddr) {
+		if !j.isSentenced(req) {
 			since := time.Now().Add(-j.Window)
-			reqCount := j.visitors.CountVisits(ipAddr, since)
+			reqCount := j.visitors.CountVisits(req, since)
 			if reqCount <= j.AllowedRequests {
 				next.ServeHTTP(w, req)
 				return
 			}
 		}
 
-		j.sentence(ipAddr)
+		j.sentence(req)
 
 		if !j.NoRespond {
 			fmt.Fprint(w, "You are doing that too much. Please slow down and try again later.")
@@ -63,15 +63,15 @@ func (j Jail) Middleware(next http.Handler) http.Handler {
 }
 
 // isSentenced checks if the address is subject to a cooloff period
-func (j Jail) isSentenced(ipAddr string) bool {
-	release, isJailed := j.Sentences[ipAddr]
+func (j Jail) isSentenced(req *http.Request) bool {
+	release, isJailed := j.Sentences[req.RemoteAddr]
 	return isJailed && release.After(time.Now())
 }
 
 // sentence address to a cooloff
-func (j Jail) sentence(ipAddr string) {
+func (j Jail) sentence(req *http.Request) {
 	sentence := time.Now().Add(j.Cooloff)
-	j.Sentences[ipAddr] = sentence
+	j.Sentences[req.RemoteAddr] = sentence
 }
 
 const cleanupEvery = 100
@@ -91,23 +91,23 @@ func NewDefaultVisitorLog() *DefaultVisitorLog {
 }
 
 // LogVisit logs an IP address request
-func (l *DefaultVisitorLog) LogVisit(ipAddr string) {
+func (l *DefaultVisitorLog) LogVisit(req *http.Request) {
 	logVisitMux.Lock()
-	l.visits[ipAddr] = append(l.visits[ipAddr], time.Now())
+	l.visits[req.RemoteAddr] = append(l.visits[req.RemoteAddr], time.Now())
 	logVisitMux.Unlock()
 }
 
 // CountVisits counts the visitor's visit
-func (l *DefaultVisitorLog) CountVisits(ipAddr string, since time.Time) int {
+func (l *DefaultVisitorLog) CountVisits(req *http.Request, since time.Time) int {
 	var visits []time.Time
-	for _, visit := range l.visits[ipAddr] {
+	for _, visit := range l.visits[req.RemoteAddr] {
 		if visit.After(since) || visit.Equal(since) {
 			visits = append(visits, visit)
 		}
 	}
 
 	// remove old visits
-	l.visits[ipAddr] = visits
+	l.visits[req.RemoteAddr] = visits
 	return len(visits)
 }
 
